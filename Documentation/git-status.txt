@@ -100,6 +100,11 @@ configuration variable documented in linkgit:git-config[1].
 --ignored::
 	Show ignored files as well.
 
+--collapse-ignored::
+    When displaying ignored files and individual untracked files, individual
+    ignored files are also shown. This option allows for ignored files
+    collapsed into directories if appropriate.
+
 -z::
 	Terminate entries with NUL, instead of LF.  This implies
 	the `--porcelain=v1` output format if no other format is given.

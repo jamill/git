@@ -72,6 +72,7 @@ struct wt_status {
 	int submodule_summary;
 	int show_ignored_files;
 	enum untracked_status_type show_untracked_files;
+	int collapse_ignored_directories;
 	const char *ignore_submodule_arg;
 	char color_palette[WT_STATUS_MAXSLOT][COLOR_MAXLEN];
 	unsigned colopts;
