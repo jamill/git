@@ -663,6 +663,10 @@ static void wt_status_collect_untracked(struct wt_status *s)
 		dir.flags |= DIR_SHOW_IGNORED_TOO;
 	else
 		dir.untracked = the_index.untracked;
+
+	if (s->collapse_ignored_directories)
+		dir.flags |= DIR_COLLAPSE_IGNORED;
+
 	setup_standard_excludes(&dir);
 
 	fill_directory(&dir, &s->pathspec);

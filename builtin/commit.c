@@ -1331,6 +1331,7 @@ static int git_status_config(const char *k, const char *v, void *cb)
 int cmd_status(int argc, const char **argv, const char *prefix)
 {
 	static int no_lock_index = 0;
+	static int collapse_ignored_directories = 0;
 	static struct wt_status s;
 	int fd;
 	struct object_id oid;
@@ -1360,6 +1361,8 @@ int cmd_status(int argc, const char **argv, const char *prefix)
 		OPT_COLUMN(0, "column", &s.colopts, N_("list untracked files in columns")),
 		OPT_BOOL(0, "no-lock-index", &no_lock_index,
 			 N_("do not lock the index")),
+		OPT_BOOL(0, "show-ignored-directory", &collapse_ignored_directories,
+		N_("show directories matching ignore pattern and not contained individual files")),
 		OPT_END(),
 	};
 
@@ -1398,6 +1401,7 @@ int cmd_status(int argc, const char **argv, const char *prefix)
 	s.ignore_submodule_arg = ignore_submodule_arg;
 	s.status_format = status_format;
 	s.verbose = verbose;
+	s.collapse_ignored_directories = collapse_ignored_directories;
 
 	wt_status_collect(&s);
 

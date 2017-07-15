@@ -46,7 +46,7 @@ struct cached_dir {
 
 static enum path_treatment read_directory_recursive(struct dir_struct *dir,
 	const char *path, int len, struct untracked_cache_dir *untracked,
-	int check_only, const struct pathspec *pathspec);
+	int check_only, int stop_first_file, const struct pathspec *pathspec);
 static int get_dtype(struct dirent *de, const char *path, int len);
 
 int fspathcmp(const char *a, const char *b)
@@ -1348,6 +1348,9 @@ static enum path_treatment treat_directory(struct dir_struct *dir,
 	const char *dirname, int len, int baselen, int exclude,
 	const struct pathspec *pathspec)
 {
+	int stop_at_first_file = 0;
+	enum path_treatment read_directory_recursive_result;
+
 	/* The "len-1" is to strip the final '/' */
 	switch (directory_exists_in_index(dirname, len-1)) {
 	case index_directory:
@@ -1357,7 +1360,8 @@ static enum path_treatment treat_directory(struct dir_struct *dir,
 		return path_none;
 
 	case index_nonexistent:
-		if (dir->flags & DIR_SHOW_OTHER_DIRECTORIES)
+		if ((exclude && (dir->flags & DIR_COLLAPSE_IGNORED)) ||
+			(dir->flags & DIR_SHOW_OTHER_DIRECTORIES))
 			break;
 		if (!(dir->flags & DIR_NO_GITLINKS)) {
 			unsigned char sha1[20];
@@ -1369,13 +1373,38 @@ static enum path_treatment treat_directory(struct dir_struct *dir,
 
 	/* This is the "show_other_directories" case */
 
-	if (!(dir->flags & DIR_HIDE_EMPTY_DIRECTORIES))
+	if (!(dir->flags & DIR_HIDE_EMPTY_DIRECTORIES) &&
+		!(exclude && (dir->flags & DIR_COLLAPSE_IGNORED)))
 		return exclude ? path_excluded : path_untracked;
+
+	if ((dir-> flags & DIR_COLLAPSE_IGNORED) && exclude)
+		stop_at_first_file = 1;
 
 	untracked = lookup_untracked(dir->untracked, untracked,
 				     dirname + baselen, len - baselen);
-	return read_directory_recursive(dir, dirname, len,
-					untracked, 1, pathspec);
+
+	read_directory_recursive_result = read_directory_recursive(dir, dirname, len,
+					untracked, 1, stop_at_first_file, pathspec);
+
+	/*
+	 * If this was an excluded path and we hiding empty directories
+	 * and showing ignored directories (not individual files inside of
+	 * ignored directories, then we need to decide between showing the
+	 * excluded directory or none.
+	 *
+	 * If we are not hiding empty directories and have reached this point,
+	 * then return the value from read_directory_recurs
+	 */
+	if (exclude &&
+		(dir->flags & DIR_COLLAPSE_IGNORED) &&
+		(dir->flags & DIR_HIDE_EMPTY_DIRECTORIES)) {
+		if (read_directory_recursive_result == path_excluded)
+			return path_excluded;
+		else
+			return path_none;
+	}
+	else
+		return read_directory_recursive_result;
 }
 
 /*
@@ -1599,7 +1628,7 @@ static enum path_treatment treat_path_fast(struct dir_struct *dir,
 		 * with check_only set.
 		 */
 		return read_directory_recursive(dir, path->buf, path->len,
-						cdir->ucd, 1, pathspec);
+						cdir->ucd, 1, 0, pathspec);
 	/*
 	 * We get path_recurse in the first run when
 	 * directory_exists_in_index() returns index_nonexistent. We
@@ -1615,6 +1644,7 @@ static enum path_treatment treat_path(struct dir_struct *dir,
 				      struct strbuf *path,
 				      int baselen,
 				      const struct pathspec *pathspec)
+
 {
 	int dtype;
 	struct dirent *de = cdir->de;
@@ -1760,12 +1790,23 @@ static void close_cached_dir(struct cached_dir *cdir)
  */
 static enum path_treatment read_directory_recursive(struct dir_struct *dir,
 				    const char *base, int baselen,
-				    struct untracked_cache_dir *untracked, int check_only,
+				    struct untracked_cache_dir *untracked, int check_only, int stop_first_file,
 				    const struct pathspec *pathspec)
 {
 	struct cached_dir cdir;
 	enum path_treatment state, subdir_state, dir_state = path_none;
 	struct strbuf path = STRBUF_INIT;
+	int max_dir_state;
+
+	/*
+	 * Set max_dir_state depending on whether we want to
+	 * stop on the first file or the first untracked file.
+	 * Only applies when check_only is set.
+	 */
+	if (stop_first_file)
+		max_dir_state = path_excluded;
+	else
+		max_dir_state = path_untracked;
 
 	strbuf_add(&path, base, baselen);
 
@@ -1795,18 +1836,28 @@ static enum path_treatment read_directory_recursive(struct dir_struct *dir,
 			subdir_state =
 				read_directory_recursive(dir, path.buf,
 							 path.len, ud,
-							 check_only, pathspec);
+							 check_only, stop_first_file, pathspec);
+
 			if (subdir_state > dir_state)
 				dir_state = subdir_state;
 		}
 
 		if (check_only) {
+
 			/* abort early if maximum state has been reached */
-			if (dir_state == path_untracked) {
-				if (cdir.fdir)
-					add_untracked(untracked, path.buf + baselen);
+			if (dir_state > max_dir_state)
+				dir_state = max_dir_state;
+
+			if (dir_state == max_dir_state) {
+				if (dir_state == path_untracked) {
+					if (cdir.fdir) {
+						add_untracked(untracked, path.buf + baselen);
+					}
+				}
+				
 				break;
 			}
+
 			/* skip the dir_add_* part */
 			continue;
 		}
@@ -2070,7 +2121,7 @@ int read_directory(struct dir_struct *dir, const char *path,
 		 */
 		dir->untracked = NULL;
 	if (!len || treat_leading_path(dir, path, len, pathspec))
-		read_directory_recursive(dir, path, len, untracked, 0, pathspec);
+		read_directory_recursive(dir, path, len, untracked, 0, 0, pathspec);
 	QSORT(dir->entries, dir->nr, cmp_dir_entry);
 	QSORT(dir->ignored, dir->ignored_nr, cmp_dir_entry);
 
