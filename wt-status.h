@@ -27,6 +27,12 @@ enum untracked_status_type {
 	SHOW_ALL_UNTRACKED_FILES
 };
 
+enum show_ignored_type {
+	SHOW_IGNORED_NONE,
+	SHOW_IGNORED_DEFAULT,
+	SHOW_IGNORED_MATCHING,
+};
+
 /* from where does this commit originate */
 enum commit_whence {
 	FROM_COMMIT,     /* normal */
@@ -72,6 +78,7 @@ struct wt_status {
 	int submodule_summary;
 	int show_ignored_files;
 	enum untracked_status_type show_untracked_files;
+	enum show_ignored_type show_ignored_mode;
 	const char *ignore_submodule_arg;
 	char color_palette[WT_STATUS_MAXSLOT][COLOR_MAXLEN];
 	unsigned colopts;

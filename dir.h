@@ -37,6 +37,15 @@ struct exclude {
 };
 
 /*
+ * Controls which ignored files are reported
+ */
+enum dir_show_ignored_type {
+    DIR_SHOW_IGNORED_MODE_NONE,
+    DIR_SHOW_IGNORED_MODE_DEFAULT,
+    DIR_SHOW_IGNORED_MODE_MATCHING,
+};
+
+/*
  * Each excludes file will be parsed into a fresh exclude_list which
  * is appended to the relevant exclude_list_group (either EXC_DIRS or
  * EXC_FILE).  An exclude_list within the EXC_CMDL exclude_list_group
@@ -156,6 +165,12 @@ struct dir_struct {
 	} flags;
 	struct dir_entry **entries;
 	struct dir_entry **ignored;
+
+	/*
+	 * Control which ignored files are shown when
+	 * `DIR_SHOW_IGNORED_TOO` is specified
+	 */
+	enum dir_show_ignored_type show_ignored_too_mode;
 
 	/* Exclude info */
 	const char *exclude_per_dir;

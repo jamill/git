@@ -59,6 +59,38 @@ The notable options are:
 	If set, recurse into a directory that looks like a Git
 	directory.  Otherwise it is shown as a directory.
 
+`show_ignored_too_mode`::
+
+	Modifies which ignored files are returned when the
+	`DIR_SHOW_IGNORED_TOO` flag is.
+
+`DIR_SHOW_IGNORED_TOO_MODE_MATCHING`:::
+
+	Report ignored files that match an ignore pattern. If a
+	directory matches an ignore pattern, than it will be reported
+	instead of contained paths. If a directory does not match an
+	ignore pattern, but all contained paths do, then the
+	individual contained paths will be reported and not the
+	directory.
+
+`DIR_SHOW_IGNORED_TOO_MODE_DEFAULT`:::
+
+	The reported ignored files depends on whether
+	DIR_SHOW_OTHER_DIRECTORIES is specified. If we are showing
+	other directories, then the reported ignored paths follow the
+	DIR_SHOW_IGNORED_NORMAL behavior. Otherwise, it will follow
+	the DIR_SHOW_IGNORED_ALL behavior.
+
+`DIR_SHOW_IGNORED_TOO_MODE_ALL`:::
+
+	All ignored files are reported.
+
+`DIR_SHOW_IGNORED_TOO_MODE_NORMAL`:::
+
+	Ignored files and directories are reported. Directories that
+	do not explicitly match an ignore pattern, but all contained
+	entries are ignored, will be reported as ignored.
+
 The result of the enumeration is left in these fields:
 
 `entries[]`::
