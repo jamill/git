@@ -66,11 +66,30 @@ test_expect_success 'setup folder with tracked & ignored files' '
 '
 
 test_expect_success 'Verify status on folder with tracked & ignored files' '
-	test_when_finished "git clean -fdx && git reset HEAD~1 --hard" &&
 	git status --porcelain=v2 --ignored --untracked-files=all --show-ignored-directory >output &&
 	test_i18ncmp expect output
 '
 
+# Test status with modified paths
+cat >expect <<\EOF
+1 .M N... 100644 100644 100644 e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 tracked_ignored/tracked_1
+? expect
+? output
+! dir/tracked_ignored/ignored_1.ign
+! dir/tracked_ignored/ignored_2.ign
+! tracked_ignored/ignored_1.ign
+! tracked_ignored/ignored_2.ign
+EOF
+
+test_expect_success 'setup workdir with modified tracked files' '
+	echo 123 > tracked_ignored/tracked_1
+'
+
+test_expect_success 'Verify status on folder with tracked & ignored files' '
+	test_when_finished "git clean -fdx && git reset HEAD~1 --hard" &&
+	git status --porcelain=v2 --ignored --untracked-files=all --show-ignored-directory >output &&
+	test_i18ncmp expect output
+'
 
 # Test status behavior on folder with untracked and ignored files
 cat >expect <<\EOF
@@ -141,6 +160,28 @@ test_expect_success 'setup folder with tracked & ignored files' '
 
 test_expect_success 'Verify status on folder with tracked & ignored files' '
 	test_when_finished "git clean -fdx && git reset HEAD~1 --hard" &&
+	git status --porcelain=v2 --ignored --untracked-files=all --show-ignored-directory >output &&
+	test_i18ncmp expect output
+'
+
+# Test status with more complex paths -
+# ignored underneath an untracked folder
+cat >expect <<\EOF
+? expect
+? output
+? dir/dir/untracked/dir/untracked/a
+! dir/dir/untracked/dir/ignored/a.ign
+! dir/dir/untracked/dir/ignored_dir/
+EOF
+
+test_expect_success 'setup deeper folder structure for ignored and untracked' '
+	mkdir dir/dir/untracked/dir/ignored dir/dir/untracked/dir/ignored_dir \
+		dir/dir/untracked/dir/untracked &&
+	touch dir/dir/untracked/dir/ignored/a.ign dir/dir/untracked/dir/ignored_dir/a \
+	      dir/dir/untracked/dir/untracked/a
+'
+test_expect_success 'Verify status on slightly deeper folder structure' '
+	test_when_finished "git clean -fdx" &&
 	git status --porcelain=v2 --ignored --untracked-files=all --show-ignored-directory >output &&
 	test_i18ncmp expect output
 '
