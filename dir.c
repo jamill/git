@@ -1389,6 +1389,29 @@ static enum path_treatment treat_directory(struct dir_struct *dir,
 	case index_nonexistent:
 		if (dir->flags & DIR_SHOW_OTHER_DIRECTORIES)
 			break;
+		if (exclude &&
+			(dir->flags & DIR_SHOW_IGNORED_TOO) &&
+			(dir->flags & DIR_SHOW_IGNORED_TOO_MODE_MATCHING)) {
+
+			/*
+			 * When showing ignored files too, and the
+			 * ignored mode is 'matching', and this
+			 * is a directory matching an ignore pattern,
+			 * then do not return path_recurse, as we do
+			 * not want to recurse into the directory to
+			 * record all individual ignored files. Instead,
+			 * just check to see if the directory is empty
+			 * or not (if necessary).
+			 */
+			if (!(dir->flags & DIR_HIDE_EMPTY_DIRECTORIES))
+				return path_excluded;
+
+			if (read_directory_recursive(dir, istate, dirname, len,
+				untracked, 1, 1, pathspec) == path_excluded)
+				return path_excluded;
+
+			return path_none;
+		}
 		if (!(dir->flags & DIR_NO_GITLINKS)) {
 			unsigned char sha1[20];
 			if (resolve_gitlink_ref(dirname, "HEAD", sha1) == 0)
@@ -1811,6 +1834,7 @@ static enum path_treatment read_directory_recursive(struct dir_struct *dir,
 	struct cached_dir cdir;
 	enum path_treatment state, subdir_state, dir_state = path_none;
 	struct strbuf path = STRBUF_INIT;
+	int dtype;
 
 	strbuf_add(&path, base, baselen);
 
@@ -1824,6 +1848,22 @@ static enum path_treatment read_directory_recursive(struct dir_struct *dir,
 		/* check how the file or directory should be treated */
 		state = treat_path(dir, untracked, &cdir, istate, &path,
 				   baselen, pathspec);
+
+		/*
+		 * If we are showing matching excluded files, and the
+		 * path_treatment for this directory is path_exclude
+		 * but the directory does not match an exclude
+		 * pattern, then treat this path as path_recurse so
+		 * that we will enumerate the directory contents and not
+		 * record the directory itself as an excluded
+		 * path.
+		 */
+		if((state == path_excluded) &&
+		   (dir->flags & DIR_SHOW_IGNORED_TOO) &&
+		   (dir->flags & DIR_SHOW_IGNORED_TOO_MODE_MATCHING) &&
+		   ((dtype = get_dtype(cdir.de, istate, path.buf, path.len)) == DT_DIR) &&
+		   !is_excluded(dir, istate, path.buf, &dtype))
+			state = path_recurse;
 
 		if (state > dir_state)
 			dir_state = state;
