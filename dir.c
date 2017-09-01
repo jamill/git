@@ -1808,6 +1808,13 @@ static void close_cached_dir(struct cached_dir *cdir)
  * Also, we ignore the name ".git" (even if it is not a directory).
  * That likely will not change.
  *
+ * If 'stop_at_first_file' is specified, 'path_excluded' is returned
+ * to signal that a file was found. In this case, `path_excluded` is
+ * the most significant path_treatment value that will be
+ * returned. This is the least significant value that indicates that a
+ * file was encountered that does not depend on the order of whether
+ * an untracked or exluded path was encountered first.
+ *
  * Returns the most significant path_treatment value encountered in the scan.
  */
 static enum path_treatment read_directory_recursive(struct dir_struct *dir,
@@ -1855,19 +1862,21 @@ static enum path_treatment read_directory_recursive(struct dir_struct *dir,
 		if (check_only) {
 			if (stop_at_first_file) {
 				/*
-				 * In general, if we are stopping at the first found file,
-				 * We can only signal that a path of at least "excluded" was
-				 * found. If the first file we find is "excluded" - there might
-				 * be other untracked files later on that will not be searched.
+				 * If stopping at first file, then
+				 * signal that a file was found by
+				 * returning `path_excluded`. This is
+				 * to return a consistent value
+				 * regardless of whether an ignored or
+				 * excluded file happened to be
+				 * encountered 1st.
 				 *
-				 * In current usage of this function, stop_at_first_file will
-				 * only be set when called from a directory that matches the
-				 * exclude pattern - there should be no untracked files -
-				 * all contents should be marked as excluded.
+				 * In current usage, the
+				 * `stop_at_first_file` is passed when
+				 * an ancestor directory has matched
+				 * an exclude pattern, so any found
+				 * files will be excluded.
 				 */
-				if (dir_state == path_excluded)
-					break;
-				else if (dir_state > path_excluded) {
+				if (dir_state >= path_excluded) {
 					dir_state = path_excluded;
 					break;
 				}
