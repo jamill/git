@@ -1418,8 +1418,12 @@ static enum path_treatment treat_directory(struct dir_struct *dir,
 
 	untracked = lookup_untracked(dir->untracked, untracked,
 				     dirname + baselen, len - baselen);
+	/* 
+	 * If this is an excluded directory, then we only need to check if
+	 * the directory contains any files.
+	 */
 	return read_directory_recursive(dir, istate, dirname, len,
-					untracked, 1, 0, pathspec);
+					untracked, 1, exclude, pathspec);
 }
 
 
@@ -1809,14 +1813,15 @@ static void close_cached_dir(struct cached_dir *cdir)
  * That likely will not change.
  *
  * If 'stop_at_first_file' is specified, 'path_excluded' is returned
- * to signal that a file was found. In this case, `path_excluded` is
- * the most significant path_treatment value that will be
- * returned. This is the least significant value that indicates that a
- * file was encountered that does not depend on the order of whether
- * an untracked or exluded path was encountered first.
+ * to signal that a file was found. This is the least significant value that
+ * indicates that a file was encountered that does not depend on the order of
+ * whether an untracked or exluded path was encountered first.
  *
  * Returns the most significant path_treatment value encountered in the scan.
+ * If 'stop_at_first_file' is specified, `path_excluded` is the most
+ * significant path_treatment value that will be returned.
  */
+
 static enum path_treatment read_directory_recursive(struct dir_struct *dir,
 	struct index_state *istate, const char *base, int baselen,
 	struct untracked_cache_dir *untracked, int check_only,
