@@ -129,26 +129,43 @@ test_expect_success 'Verify status behavior on ignored folder containing tracked
 	test_i18ncmp expect output
 '
 
-# Test status behavior on ignored folder with tracked file
-test_expect_success 'Verify status behavior on ignored folder containing tracked file' '
-	test_when_finished "git clean -fdx && git reset HEAD~1 --hard" &&
+# Test ignored matching behavior with --untracked=normal
+test_expect_success 'Verify matching ignored files with --untracked-files=normal' '
+	# test_when_finished "git clean -fdx" &&
 	cat >expect <<-\EOF &&
 	? expect
 	? output
-	! ignored_dir/ignored_1
-	! ignored_dir/ignored_1.ign
-	! ignored_dir/ignored_2
-	! ignored_dir/ignored_2.ign
+	? untracked_dir/
+	! ignored_dir/
+	! ignored_files/ignored_1.ign
+	! ignored_files/ignored_2.ign
 	EOF
 
-	mkdir ignored_dir &&
+	mkdir ignored_dir ignored_files untracked_dir &&
 	touch ignored_dir/ignored_1 ignored_dir/ignored_2 \
-		ignored_dir/ignored_1.ign ignored_dir/ignored_2.ign \
-		ignored_dir/tracked &&
-	git add -f ignored_dir/tracked &&
-	test_tick &&
-	git commit -m "Force add file in ignored directory" &&
-	git status --porcelain=v2 --ignored=matching --untracked-files=all >output &&
+		ignored_files/ignored_1.ign ignored_files/ignored_2.ign \
+		untracked_dir/untracked &&
+	git status --porcelain=v2 --ignored=matching --untracked-files=normal >output &&
+	test_i18ncmp expect output
+'
+
+# Test ignored matching behavior with --untracked=normal
+test_expect_success 'Verify matching ignored files with --untracked-files=normal' '
+	test_when_finished "git clean -fdx" &&
+	cat >expect <<-\EOF &&
+	? expect
+	? output
+	? untracked_dir/
+	! ignored_dir/
+	! ignored_files/ignored_1.ign
+	! ignored_files/ignored_2.ign
+	EOF
+
+	mkdir ignored_dir ignored_files untracked_dir &&
+	touch ignored_dir/ignored_1 ignored_dir/ignored_2 \
+		ignored_files/ignored_1.ign ignored_files/ignored_2.ign \
+		untracked_dir/untracked &&
+	git status --porcelain=v2 --ignored=matching --untracked-files=normal >output &&
 	test_i18ncmp expect output
 '
 
