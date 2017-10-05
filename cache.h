@@ -10,6 +10,7 @@
 #include "convert.h"
 #include "trace.h"
 #include "string-list.h"
+#include "mem_pool.h"
 #include "pack-revindex.h"
 #include "hash.h"
 #include "path.h"
@@ -181,6 +182,7 @@ struct cache_entry {
 	unsigned int ce_namelen;
 	unsigned int index;	/* for link extension */
 	struct object_id oid;
+	// char *name; /* more */
 	char name[FLEX_ARRAY]; /* more */
 };
 
@@ -345,6 +347,7 @@ struct index_state {
 	struct hashmap dir_hash;
 	unsigned char sha1[20];
 	struct untracked_cache *untracked;
+	struct mem_pool_manager *string_pool;
 };
 
 extern struct index_state the_index;

@@ -1,6 +1,7 @@
 #include "cache.h"
 #include "split-index.h"
 #include "ewah/ewok.h"
+#include "cache_entry_manager.h"
 
 struct split_index *init_split_index(struct index_state *istate)
 {
@@ -123,7 +124,7 @@ static void replace_entry(size_t pos, void *data)
 	src->ce_flags |= CE_UPDATE_IN_BASE;
 	src->ce_namelen = dst->ce_namelen;
 	copy_cache_entry(dst, src);
-	free(src);
+	cache_entry_free(src);
 	si->nr_replacements++;
 }
 
@@ -224,7 +225,7 @@ void prepare_to_write_split_index(struct index_state *istate)
 			base->ce_flags = base_flags;
 			if (ret)
 				ce->ce_flags |= CE_UPDATE_IN_BASE;
-			free(base);
+			cache_entry_free(base);
 			si->base->cache[ce->index - 1] = ce;
 		}
 		for (i = 0; i < si->base->cache_nr; i++) {
@@ -299,7 +300,7 @@ void save_or_free_index_entry(struct index_state *istate, struct cache_entry *ce
 	    ce == istate->split_index->base->cache[ce->index - 1])
 		ce->ce_flags |= CE_REMOVE;
 	else
-		free(ce);
+		cache_entry_free(ce);
 }
 
 void replace_index_entry_in_base(struct index_state *istate,
@@ -312,7 +313,7 @@ void replace_index_entry_in_base(struct index_state *istate,
 	    old->index <= istate->split_index->base->cache_nr) {
 		new->index = old->index;
 		if (old != istate->split_index->base->cache[new->index - 1])
-			free(istate->split_index->base->cache[new->index - 1]);
+			cache_entry_free(istate->split_index->base->cache[new->index - 1]);
 		istate->split_index->base->cache[new->index - 1] = new;
 	}
 }

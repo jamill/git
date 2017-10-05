@@ -20,6 +20,7 @@
 #include "quote.h"
 #include "rerere.h"
 #include "apply.h"
+#include "cache_entry_manager.h"
 
 static void git_apply_config(void)
 {
@@ -4117,7 +4118,7 @@ static int build_fake_ancestor(struct apply_state *state, struct patch *list)
 			return error(_("make_cache_entry failed for path '%s'"),
 				     name);
 		if (add_index_entry(&result, ce, ADD_CACHE_OK_TO_ADD)) {
-			free(ce);
+			cache_entry_free(ce);
 			return error(_("could not add %s to temporary index"),
 				     name);
 		}
@@ -4300,13 +4301,13 @@ static int add_index_file(struct apply_state *state,
 
 		if (!skip_prefix(buf, "Subproject commit ", &s) ||
 		    get_oid_hex(s, &ce->oid)) {
-			free(ce);
+			cache_entry_free(ce);
 		       return error(_("corrupt patch for submodule %s"), path);
 		}
 	} else {
 		if (!state->cached) {
 			if (lstat(path, &st) < 0) {
-				free(ce);
+				cache_entry_free(ce);
 				return error_errno(_("unable to stat newly "
 						     "created file '%s'"),
 						   path);
@@ -4314,13 +4315,13 @@ static int add_index_file(struct apply_state *state,
 			fill_stat_cache_info(ce, &st);
 		}
 		if (write_sha1_file(buf, size, blob_type, ce->oid.hash) < 0) {
-			free(ce);
+			cache_entry_free(ce);
 			return error(_("unable to create backing store "
 				       "for newly created file %s"), path);
 		}
 	}
 	if (add_cache_entry(ce, ADD_CACHE_OK_TO_ADD) < 0) {
-		free(ce);
+		cache_entry_free(ce);
 		return error(_("unable to add cache entry for %s"), path);
 	}
 
@@ -4464,7 +4465,7 @@ static int add_conflicted_stages_file(struct apply_state *state,
 		ce->ce_namelen = namelen;
 		oidcpy(&ce->oid, &patch->threeway_stage[stage - 1]);
 		if (add_cache_entry(ce, ADD_CACHE_OK_TO_ADD) < 0) {
-			free(ce);
+			cache_entry_free(ce);
 			return error(_("unable to add cache entry for %s"),
 				     patch->new_name);
 		}

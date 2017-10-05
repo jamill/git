@@ -54,6 +54,8 @@ char *xstrdup(const char *str)
 static void *do_xmalloc(size_t size, int gentle)
 {
 	void *ret;
+	static int times_hit = 0;
+	times_hit++;
 
 	if (memory_limit_check(size, gentle))
 		return NULL;
