@@ -16,6 +16,7 @@
 #include "pathspec.h"
 #include "dir.h"
 #include "split-index.h"
+#include "cache_entry_manager.h"
 
 /*
  * Default to not allowing changes to the list of files. The
@@ -282,7 +283,7 @@ static int add_one_path(const struct cache_entry *old, const char *path, int len
 
 	if (index_path(ce->oid.hash, path, st,
 		       info_only ? 0 : HASH_WRITE_OBJECT)) {
-		free(ce);
+		cache_entry_free(ce);
 		return -1;
 	}
 	option = allow_add ? ADD_CACHE_OK_TO_ADD : 0;

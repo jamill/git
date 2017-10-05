@@ -19,6 +19,7 @@
 #include "varint.h"
 #include "split-index.h"
 #include "utf8.h"
+#include "cache_entry_manager.h"
 
 #ifndef NO_PTHREADS
 #include <pthread.h>
@@ -63,7 +64,7 @@ static void replace_index_entry(struct index_state *istate, int nr, struct cache
 
 	replace_index_entry_in_base(istate, old, ce);
 	remove_name_hash(istate, old);
-	free(old);
+	cache_entry_free(old);
 	set_index_entry(istate, nr, ce);
 	ce->ce_flags |= CE_UPDATE_IN_BASE;
 	istate->cache_changed |= CE_ENTRY_CHANGED;
@@ -689,12 +690,12 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 			ce_mark_uptodate(alias);
 		alias->ce_flags |= CE_ADDED;
 
-		free(ce);
+		cache_entry_free(ce);
 		return 0;
 	}
 	if (!intent_only) {
 		if (index_path(ce->oid.hash, path, st, HASH_WRITE_OBJECT)) {
-			free(ce);
+			cache_entry_free(ce);
 			return error("unable to index file %s", path);
 		}
 	} else
@@ -711,9 +712,9 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 		    ce->ce_mode == alias->ce_mode);
 
 	if (pretend)
-		free(ce);
+		cache_entry_free(ce);
 	else if (add_index_entry(istate, ce, add_option)) {
-		free(ce);
+		cache_entry_free(ce);
 		return error("unable to add %s to index", path);
 	}
 	if (verbose && !was_same)
@@ -753,7 +754,7 @@ struct cache_entry *make_cache_entry(unsigned int mode,
 
 	ret = refresh_cache_entry(ce, refresh_options);
 	if (ret != ce)
-		free(ce);
+		cache_entry_free(ce);
 	return ret;
 }
 
@@ -1606,7 +1607,7 @@ static struct cache_entry *cache_entry_from_ondisk(struct ondisk_cache_entry *on
 						   const char *name,
 						   size_t len)
 {
-	struct cache_entry *ce = xmalloc(cache_entry_size(len));
+	struct cache_entry *ce = cache_entry_alloc(len);
 
 	ce->ce_stat_data.sd_ctime.sec = get_be32(&ondisk->ctime.sec);
 	ce->ce_stat_data.sd_mtime.sec = get_be32(&ondisk->mtime.sec);
@@ -1765,10 +1766,10 @@ int do_read_index(struct index_state *istate, const char *path, int must_exist)
 	void *mmap;
 	size_t mmap_size;
 	struct strbuf previous_name_buf = STRBUF_INIT, *previous_name;
+	uint64_t start;
 #ifndef NO_PTHREADS
 	struct verify_hdr_thread_data verify_hdr_thread_data;
 #endif
-
 	if (istate->initialized)
 		return istate->cache_nr;
 
@@ -1819,12 +1820,25 @@ int do_read_index(struct index_state *istate, const char *path, int must_exist)
 	istate->cache = xcalloc(istate->cache_alloc, sizeof(*istate->cache));
 	istate->initialized = 1;
 
-	if (istate->version == 4)
+	if (istate->version == 4) {
 		previous_name = &previous_name_buf;
-	else
+
+		// If this is V4, then pass in the number of cache entries
+		// for the cache entry manager to guess at an amount of memory
+		set_cache_entry_size(istate->cache_nr);
+	}
+	else {
 		previous_name = NULL;
+		// If this is V3 index, then we can specify the amount of space needed
+		// directly
+		set_cache_entry_size(istate->cache_nr);
+	}
 
 	src_offset = sizeof(*hdr);
+	start = getnanotime();
+
+	trace_performance_since(start, "Set up memory for cache entries");
+
 	for (i = 0; i < istate->cache_nr; i++) {
 		struct ondisk_cache_entry *disk_ce;
 		struct cache_entry *ce;
@@ -1836,6 +1850,9 @@ int do_read_index(struct index_state *istate, const char *path, int must_exist)
 
 		src_offset += consumed;
 	}
+
+	trace_performance_since(start, "Done iterating over index (%d entries)", istate->cache_nr);
+
 	strbuf_release(&previous_name_buf);
 	istate->timestamp.sec = st.st_mtime;
 	istate->timestamp.nsec = ST_MTIME_NSEC(st);
@@ -1944,7 +1961,7 @@ int discard_index(struct index_state *istate)
 		    istate->cache[i]->index <= istate->split_index->base->cache_nr &&
 		    istate->cache[i] == istate->split_index->base->cache[istate->cache[i]->index - 1])
 			continue;
-		free(istate->cache[i]);
+		cache_entry_free(istate->cache[i]);
 	}
 	resolve_undo_clear_index(istate);
 	istate->cache_nr = 0;

@@ -13,6 +13,7 @@
 #include "dir.h"
 #include "submodule.h"
 #include "submodule-config.h"
+#include "cache_entry_manager.h"
 
 /*
  * Error messages expected by scripts out of plumbing commands such as
@@ -831,7 +832,7 @@ static int unpack_nondirectories(int n, unsigned long mask,
 		for (i = 0; i < n; i++) {
 			struct cache_entry *ce = src[i + o->merge];
 			if (ce != o->df_conflict_entry)
-				free(ce);
+				cache_entry_free(ce);
 		}
 		return rc;
 	}
