@@ -21,6 +21,7 @@
 #include "resolve-undo.h"
 #include "submodule-config.h"
 #include "submodule.h"
+#include "cache-entry-manager.h"
 
 static const char * const checkout_usage[] = {
 	N_("git checkout [<options>] <branch>"),
@@ -95,7 +96,7 @@ static int update_some(const unsigned char *sha1, struct strbuf *base,
 		if (ce->ce_mode == old->ce_mode &&
 		    !oidcmp(&ce->oid, &old->oid)) {
 			old->ce_flags |= CE_UPDATE;
-			free(ce);
+			cache_entry_free(ce);
 			return 0;
 		}
 	}
@@ -234,7 +235,7 @@ static int checkout_merged(int pos, const struct checkout *state)
 	if (!ce)
 		die(_("make_cache_entry failed for path '%s'"), path);
 	status = checkout_entry(ce, state, NULL);
-	free(ce);
+	cache_entry_free(ce);
 	return status;
 }
 

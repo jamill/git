@@ -432,7 +432,7 @@ GIT-VERSION-FILE: FORCE
 
 # CFLAGS and LDFLAGS are for the users to override from the command line.
 
-CFLAGS = -g -O2 -Wall
+CFLAGS = -g -Wall
 DEVELOPER_CFLAGS = -Werror \
 	-Wdeclaration-after-statement \
 	-Wno-format-zero-length \
@@ -756,6 +756,7 @@ LIB_OBJS += blob.o
 LIB_OBJS += branch.o
 LIB_OBJS += bulk-checkin.o
 LIB_OBJS += bundle.o
+LIB_OBJS += cache-entry-manager.o
 LIB_OBJS += cache-tree.o
 LIB_OBJS += color.o
 LIB_OBJS += column.o
@@ -812,6 +813,7 @@ LIB_OBJS += lockfile.o
 LIB_OBJS += log-tree.o
 LIB_OBJS += mailinfo.o
 LIB_OBJS += mailmap.o
+LIB_OBJS += mem_pool.o
 LIB_OBJS += match-trees.o
 LIB_OBJS += merge.o
 LIB_OBJS += merge-blobs.o

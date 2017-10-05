@@ -21,6 +21,7 @@
 #include "strbuf.h"
 #include "lockfile.h"
 #include "dir.h"
+#include "cache-entry-manager.h"
 
 static char *diff_gui_tool;
 static int trust_exit_code;
@@ -324,7 +325,7 @@ static int checkout_path(unsigned mode, struct object_id *oid,
 	ce = make_cache_entry(mode, oid->hash, path, 0, 0);
 	ret = checkout_entry(ce, state, NULL);
 
-	free(ce);
+	cache_entry_free(ce);
 	return ret;
 }
 

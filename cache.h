@@ -10,6 +10,7 @@
 #include "convert.h"
 #include "trace.h"
 #include "string-list.h"
+#include "mem_pool.h"
 #include "pack-revindex.h"
 #include "hash.h"
 #include "path.h"
