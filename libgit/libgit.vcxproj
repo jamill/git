@@ -129,6 +129,7 @@
     <ClCompile Include="..\compat\inet_pton.c" />
     <ClCompile Include="..\compat\memmem.c" />
     <ClCompile Include="..\compat\mkdtemp.c" />
+    <ClCompile Include="..\cache_entry_manager.c" />
     <ClCompile Include="..\compat\msvc.c" />
     <ClCompile Include="..\compat\obstack.c" />
     <ClCompile Include="..\compat\poll\poll.c" />
@@ -196,6 +197,7 @@
     <ClCompile Include="..\log-tree.c" />
     <ClCompile Include="..\mailinfo.c" />
     <ClCompile Include="..\mailmap.c" />
+    <ClCompile Include="..\mem_pool.c" />
     <ClCompile Include="..\match-trees.c" />
     <ClCompile Include="..\merge-blobs.c" />
     <ClCompile Include="..\merge-recursive.c" />
