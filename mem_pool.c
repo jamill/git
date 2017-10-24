@@ -1,17 +1,10 @@
 /*
-* This handles a pool of string
+* This handles a pool of memory
 */
 
 #include "cache.h"
 #include "config.h"
 #include "mem_pool.h"
-
-struct mem_pool {
-	struct mem_pool *next_pool;
-	char *next_free;
-	char *end;
-	uintmax_t space[FLEX_ARRAY]; /* more */
-};
 
 void *mem_pool_alloc(struct mem_pool_manager *mem_pool_manager, size_t len)
 {
@@ -19,7 +12,7 @@ void *mem_pool_alloc(struct mem_pool_manager *mem_pool_manager, size_t len)
 	void *r;
 
 	if (len == 0)
-		len = 1024 * 1024;
+		len = 64;
 
 	/* round up to a 'uintmax_t' alignment */
 	if (len & (sizeof(uintmax_t) - 1))
@@ -31,22 +24,38 @@ void *mem_pool_alloc(struct mem_pool_manager *mem_pool_manager, size_t len)
 
 	if (!p) {
 		if (len >= ((mem_pool_manager->alloc_size - sizeof(struct mem_pool)) / 2)) {
-			mem_pool_manager->total_allocd += len;
-			return xmalloc(len);
+			// return xmalloc(len);
+			p = mem_pool_alloc_pool(mem_pool_manager, len + sizeof(struct mem_pool));
 		}
+		else
+			p = mem_pool_alloc_pool(mem_pool_manager, mem_pool_manager->alloc_size);
 
-		mem_pool_manager->total_allocd += mem_pool_manager->alloc_size;
-		p = xmalloc(st_add(sizeof(struct mem_pool), mem_pool_manager->alloc_size - sizeof(struct mem_pool)));
-		p->next_pool = mem_pool_manager->mem_pool;
-		p->next_free = (char *)p->space;
-		p->end = p->next_free + mem_pool_manager->alloc_size - sizeof(struct mem_pool);
-		mem_pool_manager->mem_pool = p;
+		// p = mem_pool_manager->mem_pool;
 	}
 
 	r = p->next_free;
 	p->next_free += len;
 	return r;
 }
+
+struct mem_pool *mem_pool_alloc_pool(struct mem_pool_manager *mem_pool_manager, size_t alloc_size)
+{
+	struct mem_pool *p;
+	mem_pool_manager->total_allocd += alloc_size;
+
+	trace_printf("mem_pool_alloc_pool size: %"PRIuMAX, (uintmax_t)alloc_size);
+
+	// TODO: The pool needs to accomodate at least alloc_size content
+	p = xmalloc(st_add(sizeof(struct mem_pool), alloc_size - sizeof(struct mem_pool)));
+
+	p->next_pool = mem_pool_manager->mem_pool;
+	p->next_free = (char *)p->space;
+	p->end = p->next_free + alloc_size - sizeof(struct mem_pool);
+	mem_pool_manager->mem_pool = p;
+
+	return p;
+}
+
 
 int mem_pool_contains(struct mem_pool_manager *mem_pool_manager, void *mem)
 {

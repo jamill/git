@@ -317,8 +317,11 @@ static struct packed_git **all_packs;
 static off_t pack_size;
 
 /* Table of objects we've written. */
-static unsigned int object_entry_alloc = 5000;
-static struct object_entry_pool *blocks;
+// static unsigned int object_entry_alloc = 5000;
+// static struct object_entry_pool *blocks;
+
+static struct mem_pool_manager block_pool_manager =  {0, 5000, 0 };
+
 static struct object_entry *object_table[1 << 16];
 static struct mark_set *marks;
 static const char *export_marks_file;
@@ -541,27 +544,19 @@ static void set_checkpoint_signal(void)
 
 #endif
 
-static void alloc_objects(unsigned int cnt)
-{
-	struct object_entry_pool *b;
-
-	b = xmalloc(sizeof(struct object_entry_pool)
-		+ cnt * sizeof(struct object_entry));
-	b->next_pool = blocks;
-	b->next_free = b->entries;
-	b->end = b->entries + cnt;
-	blocks = b;
-	alloc_count += cnt;
-}
+// static void alloc_objects(unsigned int cnt)
+// {
+//	mem_pool_alloc_pool(&block_pool_manager,
+//			    sizeof(struct object_entry_pool) + cnt * sizeof(struct object_entry));
+//	alloc_count += cnt;
+// }
 
 static struct object_entry *new_object(struct object_id *oid)
 {
 	struct object_entry *e;
 
-	if (blocks->next_free == blocks->end)
-		alloc_objects(object_entry_alloc);
+	e = mem_pool_alloc(&block_pool_manager, sizeof(struct object_entry));
 
-	e = blocks->next_free++;
 	oidcpy(&e->idx.oid, oid);
 	return e;
 }
@@ -891,15 +886,17 @@ static const char *create_index(void)
 	const char *tmpfile;
 	struct pack_idx_entry **idx, **c, **last;
 	struct object_entry *e;
-	struct object_entry_pool *o;
+	struct mem_pool *o;
 
 	/* Build the table of object IDs. */
 	ALLOC_ARRAY(idx, object_count);
 	c = idx;
-	for (o = blocks; o; o = o->next_pool)
-		for (e = o->next_free; e-- != o->entries;)
+
+	for (o = block_pool_manager.mem_pool; o; o = o->next_pool)
+		for (e = (struct object_entry *)o->next_free; e-- != (struct object_entry *)o->space;)
 			if (pack_id == e->pack_id)
 				*c++ = &e->idx;
+
 	last = idx + object_count;
 	if (c != last)
 		die("internal consistency error creating the index");
@@ -3420,7 +3417,7 @@ int cmd_main(int argc, const char **argv)
 	reset_pack_idx_option(&pack_idx_opts);
 	git_pack_config();
 
-	alloc_objects(object_entry_alloc);
+	// alloc_objects(object_entry_alloc);
 	strbuf_init(&command_buf, 0);
 	atom_table = xcalloc(atom_table_sz, sizeof(struct atom_str*));
 	branch_table = xcalloc(branch_table_sz, sizeof(struct branch*));

@@ -3,17 +3,21 @@
 
 static struct mem_pool_manager *mem_manager = 0;
 
-void init_mem_manager(struct mem_pool_manager **mem_manager, size_t alloc_size)
+void init_mem_manager(struct mem_pool_manager **mem_manager, size_t alloc_growth_size, size_t initial_size)
 {
 	if (!(*mem_manager))
 	{
-		if (alloc_size < 1024 * 1024)
-			alloc_size = 1024 * 1024;
+		if (alloc_growth_size < 1024 * 1024)
+			alloc_growth_size = 1024 * 1024;
 
 		*mem_manager = xmalloc(sizeof(struct mem_pool_manager));
 		(*mem_manager)->total_allocd = 0;
 		(*mem_manager)->mem_pool = 0;
-		(*mem_manager)->alloc_size = alloc_size;
+		(*mem_manager)->alloc_size = alloc_growth_size;
+
+
+		if (initial_size > 0)
+			mem_pool_alloc_pool((*mem_manager), initial_size);
 	}
 }
 
@@ -23,7 +27,15 @@ void init_mem_manager(struct mem_pool_manager **mem_manager, size_t alloc_size)
 void set_cache_entry_size(size_t num_entries)
 {
 	trace_printf("set_cache_entry_size: num entries: %"PRIuMAX, (uintmax_t)num_entries);
-	init_mem_manager(&mem_manager, num_entries * (sizeof(struct cache_entry) + 40));
+	init_mem_manager(&mem_manager, 0, num_entries * (sizeof(struct cache_entry) + 40));
+}
+
+/*
+ * Alloc an initial memory pool for a given number of cache entries.
+ */
+void alloc_cache_entries(size_t num_entries)
+{
+	trace_printf("set_cache_entry_size: num entries: %"PRIuMAX, (uintmax_t)num_entries);
 }
 
 /*
@@ -32,7 +44,7 @@ void set_cache_entry_size(size_t num_entries)
  */
 void *cache_entry_alloc(size_t len)
 {
-	init_mem_manager(&mem_manager, 0);
+	init_mem_manager(&mem_manager, 0, 0);
 	return mem_pool_alloc(mem_manager, cache_entry_size(len));
 }
 
