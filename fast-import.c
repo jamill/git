@@ -300,8 +300,7 @@ static int global_argc;
 static const char **global_argv;
 
 /* Memory pools */
-static struct mem_pool_manager mem_pool_manager =  {0, 2 * 1024 * 1024, 0 };
-static size_t total_allocd;
+static struct mem_pool mem_pool =  {0, 2 * 1024 * 1024, 0 };
 
 /* Atom management */
 static unsigned int atom_table_sz = 4451;
@@ -317,10 +316,9 @@ static struct packed_git **all_packs;
 static off_t pack_size;
 
 /* Table of objects we've written. */
-// static unsigned int object_entry_alloc = 5000;
-// static struct object_entry_pool *blocks;
-
-static struct mem_pool_manager block_pool_manager =  {0, 5000, 0 };
+static unsigned int object_entry_alloc = 5000;
+static struct object_entry_pool *blocks;
+static size_t total_allocd;
 
 static struct object_entry *object_table[1 << 16];
 static struct mark_set *marks;
@@ -544,21 +542,29 @@ static void set_checkpoint_signal(void)
 
 #endif
 
-// static void alloc_objects(unsigned int cnt)
-// {
-//	mem_pool_alloc_pool(&block_pool_manager,
-//			    sizeof(struct object_entry_pool) + cnt * sizeof(struct object_entry));
-//	alloc_count += cnt;
-// }
+static void alloc_objects(unsigned int cnt)
+{
+       struct object_entry_pool *b;
+
+       b = xmalloc(sizeof(struct object_entry_pool)
+		   + cnt * sizeof(struct object_entry));
+       b->next_pool = blocks;
+       b->next_free = b->entries;
+       b->end = b->entries + cnt;
+       blocks = b;
+       alloc_count += cnt;
+}
 
 static struct object_entry *new_object(struct object_id *oid)
 {
-	struct object_entry *e;
+       struct object_entry *e;
 
-	e = mem_pool_alloc(&block_pool_manager, sizeof(struct object_entry));
+       if (blocks->next_free == blocks->end)
+	       alloc_objects(object_entry_alloc);
 
-	oidcpy(&e->idx.oid, oid);
-	return e;
+       e = blocks->next_free++;
+       oidcpy(&e->idx.oid, oid);
+       return e;
 }
 
 static struct object_entry *find_object(struct object_id *oid)
@@ -626,12 +632,12 @@ static unsigned int hc_str(const char *s, size_t len)
 
 static void *pool_alloc(size_t len)
 {
-	return mem_pool_alloc(&mem_pool_manager, len);
+	return mem_pool_alloc(&mem_pool, len);
 }
 
 static void *pool_calloc(size_t count, size_t size)
 {
-	return mem_pool_calloc(&mem_pool_manager, count, size);
+	return mem_pool_calloc(&mem_pool, count, size);
 }
 
 static char *pool_strdup(const char *s)
@@ -886,17 +892,15 @@ static const char *create_index(void)
 	const char *tmpfile;
 	struct pack_idx_entry **idx, **c, **last;
 	struct object_entry *e;
-	struct mem_pool *o;
+	struct object_entry_pool *o;
 
 	/* Build the table of object IDs. */
 	ALLOC_ARRAY(idx, object_count);
 	c = idx;
-
-	for (o = block_pool_manager.mem_pool; o; o = o->next_pool)
-		for (e = (struct object_entry *)o->next_free; e-- != (struct object_entry *)o->space;)
+	for (o = blocks; o; o = o->next_pool)
+		for (e = o->next_free; e-- != o->entries;)
 			if (pack_id == e->pack_id)
 				*c++ = &e->idx;
-
 	last = idx + object_count;
 	if (c != last)
 		die("internal consistency error creating the index");
@@ -3417,7 +3421,6 @@ int cmd_main(int argc, const char **argv)
 	reset_pack_idx_option(&pack_idx_opts);
 	git_pack_config();
 
-	// alloc_objects(object_entry_alloc);
 	strbuf_init(&command_buf, 0);
 	atom_table = xcalloc(atom_table_sz, sizeof(struct atom_str*));
 	branch_table = xcalloc(branch_table_sz, sizeof(struct branch*));
@@ -3502,8 +3505,8 @@ int cmd_main(int argc, const char **argv)
 		fprintf(stderr, "Total branches:  %10lu (%10lu loads     )\n", branch_count, branch_load_count);
 		fprintf(stderr, "      marks:     %10" PRIuMAX " (%10" PRIuMAX " unique    )\n", (((uintmax_t)1) << marks->shift) * 1024, marks_set_count);
 		fprintf(stderr, "      atoms:     %10u\n", atom_cnt);
-		fprintf(stderr, "Memory total:    %10" PRIuMAX " KiB\n", ((total_allocd + mem_pool_manager.total_allocd) + alloc_count*sizeof(struct object_entry))/1024);
-		fprintf(stderr, "       pools:    %10lu KiB\n", (unsigned long)((total_allocd + mem_pool_manager.total_allocd) /1024));
+		fprintf(stderr, "Memory total:    %10" PRIuMAX " KiB\n", ((total_allocd + mem_pool.total_allocd) + alloc_count*sizeof(struct object_entry))/1024);
+		fprintf(stderr, "       pools:    %10lu KiB\n", (unsigned long)((total_allocd + mem_pool.total_allocd) /1024));
 		fprintf(stderr, "     objects:    %10" PRIuMAX " KiB\n", (alloc_count*sizeof(struct object_entry))/1024);
 		fprintf(stderr, "---------------------------------------------------------------------\n");
 		pack_report();

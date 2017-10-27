@@ -71,7 +71,7 @@ void rename_index_entry_at(struct index_state *istate, int nr, const char *new_n
 	struct cache_entry *old = istate->cache[nr], *new;
 	int namelen = strlen(new_name);
 
-	new = xmalloc(cache_entry_size(namelen));
+	new = cache_entry_alloc(namelen);
 	copy_cache_entry(new, old);
 	new->ce_flags &= ~CE_HASHED;
 	new->ce_namelen = namelen;
@@ -613,7 +613,7 @@ static struct cache_entry *create_alias_ce(struct index_state *istate,
 
 	/* Ok, create the new entry using the name of the existing alias */
 	len = ce_namelen(alias);
-	new = xcalloc(1, cache_entry_size(len));
+	new = cache_entry_calloc(len);
 	memcpy(new->name, alias->name, len);
 	copy_cache_entry(new, ce);
 	save_or_free_index_entry(istate, ce);
@@ -630,7 +630,7 @@ void set_object_name_for_intent_to_add_entry(struct cache_entry *ce)
 
 int add_to_index(struct index_state *istate, const char *path, struct stat *st, int flags)
 {
-	int size, namelen, was_same;
+	int namelen, was_same;
 	mode_t st_mode = st->st_mode;
 	struct cache_entry *ce, *alias;
 	unsigned ce_option = CE_MATCH_IGNORE_VALID|CE_MATCH_IGNORE_SKIP_WORKTREE|CE_MATCH_RACY_IS_DIRTY;
@@ -648,8 +648,9 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 		while (namelen && path[namelen-1] == '/')
 			namelen--;
 	}
-	size = cache_entry_size(namelen);
-	ce = xcalloc(1, size);
+
+	ce = cache_entry_calloc(namelen);
+	
 	memcpy(ce->name, path, namelen);
 	ce->ce_namelen = namelen;
 	if (!intent_only)
@@ -732,7 +733,7 @@ struct cache_entry *make_cache_entry(unsigned int mode,
 		const unsigned char *sha1, const char *path, int stage,
 		unsigned int refresh_options)
 {
-	int size, len;
+	int len;
 	struct cache_entry *ce, *ret;
 
 	if (!verify_path(path)) {
@@ -741,8 +742,7 @@ struct cache_entry *make_cache_entry(unsigned int mode,
 	}
 
 	len = strlen(path);
-	size = cache_entry_size(len);
-	ce = xcalloc(1, size);
+	ce = cache_entry_calloc(size);
 
 	hashcpy(ce->oid.hash, sha1);
 	memcpy(ce->name, path, len);
@@ -1773,19 +1773,14 @@ int do_read_index(struct index_state *istate, const char *path, int must_exist)
 	istate->cache = xcalloc(istate->cache_alloc, sizeof(*istate->cache));
 	istate->initialized = 1;
 
-	if (istate->version == 4) {
+	if (istate->version == 4)
 		previous_name = &previous_name_buf;
-
-		// If this is V4, then pass in the number of cache entries
-		// for the cache entry manager to guess at an amount of memory
-		set_cache_entry_size(istate->cache_nr);
-	}
-	else {
+	else 
 		previous_name = NULL;
-		// If this is V3 index, then we can specify the amount of space needed
-		// directly
-		set_cache_entry_size(istate->cache_nr);
-	}
+
+	// Set the initial mem_pool size based on the number of
+	// of cache entries
+	cache_entry_manager_set_count_hint(istate->cache_nr);
 
 	src_offset = sizeof(*hdr);
 	start = getnanotime();
@@ -2561,14 +2556,13 @@ int read_index_unmerged(struct index_state *istate)
 	for (i = 0; i < istate->cache_nr; i++) {
 		struct cache_entry *ce = istate->cache[i];
 		struct cache_entry *new_ce;
-		int size, len;
+		int len;
 
 		if (!ce_stage(ce))
 			continue;
 		unmerged = 1;
 		len = ce_namelen(ce);
-		size = cache_entry_size(len);
-		new_ce = xcalloc(1, size);
+		new_ce = (struct cache_entry *)cache_entry_calloc(len);
 		memcpy(new_ce->name, ce->name, len);
 		new_ce->ce_flags = create_ce_flags(0) | CE_CONFLICTED;
 		new_ce->ce_namelen = len;
