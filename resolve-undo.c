@@ -145,7 +145,7 @@ int unmerge_index_entry_at(struct index_state *istate, int pos)
 		struct cache_entry *nce;
 		if (!ru->mode[i])
 			continue;
-		nce = make_cache_entry(ru->mode[i], ru->sha1[i],
+		nce = make_index_cache_entry(istate, ru->mode[i], ru->sha1[i],
 				       name, i + 1, 0);
 		if (matched)
 			nce->ce_flags |= CE_MATCHED;
