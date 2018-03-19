@@ -380,6 +380,13 @@ extern struct cache_entry *make_empty_transient_cache_entry(size_t name_len);
 void index_cache_entry_discard(struct cache_entry *ce);
 void transient_cache_entry_discard(struct cache_entry *ce);
 
+/*
+ * Validate the cache entries in the index.  This is an internal
+ * consistency check that the cache_entry structs are allocated from
+ * the expected memory pool.
+ */
+void validate_cache_entries(const struct index_state *istate);
+
 #ifndef NO_THE_INDEX_COMPATIBILITY_MACROS
 #define active_cache (the_index.cache)
 #define active_nr (the_index.cache_nr)
@@ -2024,6 +2031,5 @@ void safe_create_dir(const char *dir, int share);
  * when doing diff-raw output or indicating a detached HEAD?
  */
 extern int print_sha1_ellipsis(void);
-
 
 #endif /* CACHE_H */
