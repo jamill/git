@@ -22,7 +22,7 @@ static int read_one_entry_opt(struct index_state *istate,
 		return READ_TREE_RECURSIVE;
 
 	len = strlen(pathname);
-	ce = make_empty_index_cache_entry(baselen + len);
+	ce = make_empty_index_cache_entry(istate, baselen + len);
 
 	ce->ce_mode = create_ce_mode(mode);
 	ce->ce_flags = create_ce_flags(stage);

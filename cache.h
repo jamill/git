@@ -329,6 +329,7 @@ struct index_state {
 	struct untracked_cache *untracked;
 	uint64_t fsmonitor_last_update;
 	struct ewah_bitmap *fsmonitor_dirty;
+	struct mem_pool *ce_mem_pool;
 };
 
 extern struct index_state the_index;
@@ -338,7 +339,6 @@ extern int test_lazy_init_name_hash(struct index_state *istate, int try_threaded
 extern void add_name_hash(struct index_state *istate, struct cache_entry *ce);
 extern void remove_name_hash(struct index_state *istate, struct cache_entry *ce);
 extern void free_name_hash(struct index_state *istate);
-
 
 /* Cache entry manipulation */
 
@@ -370,7 +370,7 @@ extern struct cache_entry *make_transient_cache_entry(unsigned int mode, const u
  *
  * name_len: The length of the path of the cache_entry.
  */
-extern struct cache_entry *make_empty_index_cache_entry(size_t name_len);
+extern struct cache_entry *make_empty_index_cache_entry(struct index_state *istate, size_t name_len);
 
 extern struct cache_entry *make_empty_transient_cache_entry(size_t name_len);
 
@@ -412,7 +412,7 @@ void transient_cache_entry_discard(struct cache_entry *ce);
 #define unmerge_cache_entry_at(at) unmerge_index_entry_at(&the_index, at)
 #define unmerge_cache(pathspec) unmerge_index(&the_index, pathspec)
 #define read_blob_data_from_cache(path, sz) read_blob_data_from_index(&the_index, (path), (sz))
-#define make_empty_cache_entry(len) make_empty_index_cache_entry(len)
+#define make_empty_cache_entry(len) make_empty_index_cache_entry(&the_index, len)
 #endif
 
 enum object_type {

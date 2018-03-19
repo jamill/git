@@ -46,6 +46,39 @@
 		 CE_ENTRY_ADDED | CE_ENTRY_REMOVED | CE_ENTRY_CHANGED | \
 		 SPLIT_INDEX_ORDERED | UNTRACKED_CHANGED | FSMONITOR_CHANGED)
 
+
+/*
+ * Number of characters to set aside for each cache entry
+ * path. If the initial amount of memory set aside is not
+ * sufficient, the mem pool will allocate extra memory.
+ */
+#define CACHE_ENTRY_PATH_LENGTH 80
+
+static struct cache_entry *mem_pool__ce_alloc(struct mem_pool *mem_pool, size_t len)
+{
+	return mem_pool_alloc(mem_pool, cache_entry_size(len));
+}
+
+static struct cache_entry *mem_pool__ce_calloc(struct mem_pool *mem_pool, size_t len)
+{
+	return mem_pool_calloc(mem_pool, 1, cache_entry_size(len));
+}
+
+static struct mem_pool *find_mem_pool(struct index_state *istate)
+{
+	struct mem_pool **pool_ptr;
+
+	if (istate->split_index && istate->split_index->base)
+		pool_ptr = &istate->split_index->base->ce_mem_pool;
+	else
+		pool_ptr = &istate->ce_mem_pool;
+
+	if (!*pool_ptr)
+		mem_pool_init(pool_ptr, 0, 0);
+
+	return *pool_ptr;
+}
+
 struct index_state the_index;
 static const char *alternate_index_output;
 
@@ -73,7 +106,7 @@ void rename_index_entry_at(struct index_state *istate, int nr, const char *new_n
 	struct cache_entry *old_entry = istate->cache[nr], *new_entry;
 	int namelen = strlen(new_name);
 
-	new_entry = make_empty_index_cache_entry(namelen);
+	new_entry = make_empty_index_cache_entry(istate, namelen);
 	copy_cache_entry(new_entry, old_entry);
 	new_entry->ce_flags &= ~CE_HASHED;
 	new_entry->ce_namelen = namelen;
@@ -622,7 +655,7 @@ static struct cache_entry *create_alias_ce(struct index_state *istate,
 
 	/* Ok, create the new entry using the name of the existing alias */
 	len = ce_namelen(alias);
-	new_entry = make_empty_index_cache_entry(len);
+	new_entry = make_empty_index_cache_entry(istate, len);
 	memcpy(new_entry->name, alias->name, len);
 	copy_cache_entry(new_entry, ce);
 	save_or_free_index_entry(istate, ce);
@@ -661,7 +694,7 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 		while (namelen && path[namelen-1] == '/')
 			namelen--;
 	}
-	ce = make_empty_index_cache_entry(namelen);
+	ce = make_empty_index_cache_entry(istate, namelen);
 	memcpy(ce->name, path, namelen);
 	ce->ce_namelen = namelen;
 	if (!intent_only)
@@ -743,9 +776,9 @@ int add_file_to_index(struct index_state *istate, const char *path, int flags)
 	return add_to_index(istate, path, &st, flags);
 }
 
-struct cache_entry *make_empty_index_cache_entry(size_t len)
+struct cache_entry *make_empty_index_cache_entry(struct index_state *istate, size_t len)
 {
-	return xcalloc(1, cache_entry_size(len));
+	return mem_pool__ce_calloc(find_mem_pool(istate), len);
 }
 
 struct cache_entry *make_empty_transient_cache_entry(size_t len)
@@ -766,7 +799,7 @@ struct cache_entry *make_index_cache_entry(struct index_state *istate, unsigned 
 	}
 
 	len = strlen(path);
-	ce = make_empty_index_cache_entry(len);
+	ce = make_empty_index_cache_entry(istate, len);
 
 	hashcpy(ce->oid.hash, sha1);
 	memcpy(ce->name, path, len);
@@ -1354,7 +1387,7 @@ static struct cache_entry *refresh_cache_ent(struct index_state *istate,
 		return NULL;
 	}
 
-	updated = make_empty_index_cache_entry(ce_namelen(ce));
+	updated = make_empty_index_cache_entry(istate, ce_namelen(ce));
 	size = ce_size(ce);
 	memcpy(updated, ce, size);
 	fill_stat_cache_info(updated, &st);
@@ -1640,12 +1673,13 @@ int read_index(struct index_state *istate)
 	return read_index_from(istate, get_index_file(), get_git_dir());
 }
 
-static struct cache_entry *cache_entry_from_ondisk(struct ondisk_cache_entry *ondisk,
+static struct cache_entry *cache_entry_from_ondisk(struct mem_pool *mem_pool,
+						   struct ondisk_cache_entry *ondisk,
 						   unsigned int flags,
 						   const char *name,
 						   size_t len)
 {
-	struct cache_entry *ce = make_empty_index_cache_entry(len);
+	struct cache_entry *ce = mem_pool__ce_alloc(mem_pool, len);
 
 	ce->ce_stat_data.sd_ctime.sec = get_be32(&ondisk->ctime.sec);
 	ce->ce_stat_data.sd_mtime.sec = get_be32(&ondisk->mtime.sec);
@@ -1687,7 +1721,8 @@ static unsigned long expand_name_field(struct strbuf *name, const char *cp_)
 	return (const char *)ep + 1 - cp_;
 }
 
-static struct cache_entry *create_from_disk(struct ondisk_cache_entry *ondisk,
+static struct cache_entry *create_from_disk(struct mem_pool *mem_pool,
+					    struct ondisk_cache_entry *ondisk,
 					    unsigned long *ent_size,
 					    struct strbuf *previous_name)
 {
@@ -1718,13 +1753,13 @@ static struct cache_entry *create_from_disk(struct ondisk_cache_entry *ondisk,
 		/* v3 and earlier */
 		if (len == CE_NAMEMASK)
 			len = strlen(name);
-		ce = cache_entry_from_ondisk(ondisk, flags, name, len);
+		ce = cache_entry_from_ondisk(mem_pool, ondisk, flags, name, len);
 
 		*ent_size = ondisk_ce_size(ce);
 	} else {
 		unsigned long consumed;
 		consumed = expand_name_field(previous_name, name);
-		ce = cache_entry_from_ondisk(ondisk, flags,
+		ce = cache_entry_from_ondisk(mem_pool, ondisk, flags,
 					     previous_name->buf,
 					     previous_name->len);
 
@@ -1855,10 +1890,13 @@ int do_read_index(struct index_state *istate, const char *path, int must_exist)
 	istate->cache = xcalloc(istate->cache_alloc, sizeof(*istate->cache));
 	istate->initialized = 1;
 
-	if (istate->version == 4)
+	if (istate->version == 4) {
 		previous_name = &previous_name_buf;
-	else
+		mem_pool_init(&istate->ce_mem_pool, 0, istate->cache_nr * (sizeof(struct cache_entry) + CACHE_ENTRY_PATH_LENGTH));
+	} else {
 		previous_name = NULL;
+		mem_pool_init(&istate->ce_mem_pool, 0, estimate_cache_size(mmap_size, istate->cache_nr));
+	}
 
 	src_offset = sizeof(*hdr);
 	for (i = 0; i < istate->cache_nr; i++) {
@@ -1867,7 +1905,7 @@ int do_read_index(struct index_state *istate, const char *path, int must_exist)
 		unsigned long consumed;
 
 		disk_ce = (struct ondisk_cache_entry *)((char *)mmap + src_offset);
-		ce = create_from_disk(disk_ce, &consumed, previous_name);
+		ce = create_from_disk(istate->ce_mem_pool, disk_ce, &consumed, previous_name);
 		set_index_entry(istate, i, ce);
 
 		src_offset += consumed;
@@ -1964,18 +2002,6 @@ int is_index_unborn(struct index_state *istate)
 
 int discard_index(struct index_state *istate)
 {
-	int i;
-
-	for (i = 0; i < istate->cache_nr; i++) {
-		if (istate->cache[i]->index &&
-		    istate->split_index &&
-		    istate->split_index->base &&
-		    istate->cache[i]->index <= istate->split_index->base->cache_nr &&
-		    istate->cache[i] == istate->split_index->base->cache[istate->cache[i]->index - 1])
-			continue;
-		index_cache_entry_discard(istate->cache[i]);
-
-	}
 	resolve_undo_clear_index(istate);
 	istate->cache_nr = 0;
 	istate->cache_changed = 0;
@@ -1989,6 +2015,11 @@ int discard_index(struct index_state *istate)
 	discard_split_index(istate);
 	free_untracked_cache(istate->untracked);
 	istate->untracked = NULL;
+
+	if (istate->ce_mem_pool) {
+		mem_pool_discard(istate->ce_mem_pool);
+		istate->ce_mem_pool = NULL;
+	}
 
 	return 0;
 }
@@ -2663,7 +2694,7 @@ int read_index_unmerged(struct index_state *istate)
 			continue;
 		unmerged = 1;
 		len = ce_namelen(ce);
-		new_ce = make_empty_index_cache_entry(len);
+		new_ce = make_empty_index_cache_entry(istate, len);
 		memcpy(new_ce->name, ce->name, len);
 		new_ce->ce_flags = create_ce_flags(0) | CE_CONFLICTED;
 		new_ce->ce_namelen = len;
@@ -2774,11 +2805,14 @@ void move_index_extensions(struct index_state *dst, struct index_state *src)
 }
 
 /*
- * Free cache entry allocated for an index.
+ * Indicate that a cache entry is no longer is use
  */
 void index_cache_entry_discard(struct cache_entry *ce)
 {
-	free(ce);
+	int invalidate_cache_entry = should_validate_cache_entries();
+
+	if (ce && invalidate_cache_entry)
+		memset(ce, 0xCD, cache_entry_size(ce->ce_namelen));
 }
 
 void transient_cache_entry_discard(struct cache_entry *ce)

@@ -195,7 +195,7 @@ static int do_add_entry(struct unpack_trees_options *o, struct cache_entry *ce,
 static struct cache_entry *dup_entry(const struct cache_entry *ce, struct index_state *istate)
 {
 	unsigned int size = ce_size(ce);
-	struct cache_entry *new_entry = make_empty_index_cache_entry(ce_namelen(ce));
+	struct cache_entry *new_entry = make_empty_index_cache_entry(istate, ce_namelen(ce));
 
 	memcpy(new_entry, ce, size);
 	return new_entry;
@@ -795,7 +795,7 @@ static struct cache_entry *create_ce_entry(const struct traverse_info *info,
 	struct cache_entry *ce =
 		is_transient ?
 		make_empty_transient_cache_entry(len) :
-		make_empty_index_cache_entry(len);
+		make_empty_index_cache_entry(istate, len);
 
 	ce->ce_mode = create_ce_mode(n->mode);
 	ce->ce_flags = create_ce_flags(stage);
