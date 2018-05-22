@@ -9,7 +9,7 @@ struct mp_block {
 };
 
 struct mem_pool {
-	struct mp_block *mp_block;
+	struct mp_block *mp_block, *mp_block_tail;
 
 	/*
 	 * The amount of available memory to grow the pool by.
@@ -20,6 +20,16 @@ struct mem_pool {
 	/* The total amount of memory allocated by the pool. */
 	size_t pool_alloc;
 };
+
+/*
+ * Initialize mem_pool with specified initial size.
+ */
+void mem_pool_init(struct mem_pool **mem_pool, size_t initial_size);
+
+/*
+ * Discard a memory pool and free all the memory it is responsible for.
+ */
+void mem_pool_discard(struct mem_pool *mem_pool);
 
 /*
  * Alloc memory from the mem_pool.
