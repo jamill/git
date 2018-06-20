@@ -8,9 +8,11 @@
 static struct mp_block *mem_pool_alloc_block(struct mem_pool *mem_pool, size_t block_alloc)
 {
 	struct mp_block *p;
+	size_t total_alloc = st_add(offsetof(struct mp_block, space), block_alloc);
 
-	mem_pool->pool_alloc += sizeof(struct mp_block) + block_alloc;
-	p = xmalloc(st_add(sizeof(struct mp_block), block_alloc));
+	mem_pool->pool_alloc = st_add(mem_pool->pool_alloc, total_alloc);
+	p = xmalloc(total_alloc);
+
 	p->next_block = mem_pool->mp_block;
 	p->next_free = (char *)p->space;
 	p->end = p->next_free + block_alloc;
