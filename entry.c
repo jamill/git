@@ -96,15 +96,15 @@ static void *read_blob_entry(const struct cache_entry *ce, unsigned long *size)
 	return NULL;
 }
 
-static int open_output_fd(char *path, const struct cache_entry *ce, int to_tempfile)
+static int open_output_fd(char *path, unsigned ce_mode, int to_tempfile)
 {
-	int symlink = (ce->ce_mode & S_IFMT) != S_IFREG;
+	int symlink = (ce_mode & S_IFMT) != S_IFREG;
 	if (to_tempfile) {
 		xsnprintf(path, TEMPORARY_FILENAME_LENGTH, "%s",
 			  symlink ? ".merge_link_XXXXXX" : ".merge_file_XXXXXX");
 		return mkstemp(path);
 	} else {
-		return create_file(path, !symlink ? ce->ce_mode : 0666);
+		return create_file(path, !symlink ? ce_mode : 0666);
 	}
 }
 
@@ -127,7 +127,7 @@ static int streaming_write_entry(const struct cache_entry *ce, char *path,
 	int result = 0;
 	int fd;
 
-	fd = open_output_fd(path, ce, to_tempfile);
+	fd = open_output_fd(path, ce->ce_mode, to_tempfile);
 	if (fd < 0)
 		return -1;
 
@@ -335,7 +335,7 @@ static int write_entry(struct cache_entry *ce,
 		 */
 
 	write_file_entry:
-		fd = open_output_fd(path, ce, to_tempfile);
+		fd = open_output_fd(path, ce->ce_mode, to_tempfile);
 		if (fd < 0) {
 			free(new_blob);
 			return error_errno("unable to create file %s", path);
