@@ -119,7 +119,9 @@ static int fstat_output(int fd, const struct checkout *state, struct stat *st)
 	return 0;
 }
 
-static int streaming_write_entry(const struct cache_entry *ce, char *path,
+static int streaming_write_entry(char *path,
+				 unsigned ce_mode,
+				 const struct object_id *ce_oid,
 				 struct stream_filter *filter,
 				 const struct checkout *state, int to_tempfile,
 				 int *fstat_done, struct stat *statbuf)
@@ -127,11 +129,11 @@ static int streaming_write_entry(const struct cache_entry *ce, char *path,
 	int result = 0;
 	int fd;
 
-	fd = open_output_fd(path, ce->ce_mode, to_tempfile);
+	fd = open_output_fd(path, ce_mode, to_tempfile);
 	if (fd < 0)
 		return -1;
 
-	result |= stream_blob_to_fd(fd, &ce->oid, filter, 1);
+	result |= stream_blob_to_fd(fd, ce_oid, filter, 1);
 	*fstat_done = fstat_output(fd, state, statbuf);
 	result |= close(fd);
 
@@ -269,9 +271,14 @@ static int write_entry(struct cache_entry *ce,
 		struct stream_filter *filter = get_stream_filter(ce->name,
 								 &ce->oid);
 		if (filter &&
-		    !streaming_write_entry(ce, path, filter,
-					   state, to_tempfile,
-					   &fstat_done, &st))
+		    !streaming_write_entry(path,
+					   ce->ce_mode,
+					   &ce->oid,
+					   filter,
+					   state,
+					   to_tempfile,
+					   &fstat_done,
+					   &st))
 			goto finish;
 	}
 
