@@ -83,10 +83,10 @@ static int create_file(const char *path, unsigned int mode)
 	return open(path, O_WRONLY | O_CREAT | O_EXCL, mode);
 }
 
-static void *read_blob_entry(const struct cache_entry *ce, unsigned long *size)
+static void *read_blob_entry(const struct object_id *oid, unsigned long *size)
 {
 	enum object_type type;
-	void *blob_data = read_object_file(&ce->oid, &type, size);
+	void *blob_data = read_object_file(oid, &type, size);
 
 	if (blob_data) {
 		if (type == OBJ_BLOB)
@@ -284,7 +284,7 @@ static int write_entry(struct cache_entry *ce,
 
 	switch (ce_mode_s_ifmt) {
 	case S_IFLNK:
-		new_blob = read_blob_entry(ce, &size);
+		new_blob = read_blob_entry(&ce->oid, &size);
 		if (!new_blob)
 			return error("unable to read sha1 file of %s (%s)",
 				     path, oid_to_hex(&ce->oid));
@@ -311,7 +311,7 @@ static int write_entry(struct cache_entry *ce,
 			new_blob = NULL;
 			size = 0;
 		} else {
-			new_blob = read_blob_entry(ce, &size);
+			new_blob = read_blob_entry(&ce->oid, &size);
 			if (!new_blob)
 				return error("unable to read sha1 file of %s (%s)",
 					     path, oid_to_hex(&ce->oid));
