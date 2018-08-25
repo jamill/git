@@ -81,6 +81,8 @@ int should_update_submodules(void);
  * and it should be updated. Returns NULL otherwise.
  */
 const struct submodule *submodule_from_ce(const struct cache_entry *ce);
+const struct submodule *submodule_from_ce_fields(unsigned int ce_mode, const char *ce_name);
+
 void check_for_new_submodule_commits(struct object_id *oid);
 int fetch_populated_submodules(struct repository *r,
 			       const struct argv_array *options,

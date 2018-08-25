@@ -362,7 +362,7 @@ static int write_entry(struct cache_entry *ce,
 			return error("cannot create temporary submodule %s", path);
 		if (mkdir(path, 0777) < 0)
 			return error("cannot create submodule directory %s", path);
-		sub = submodule_from_ce(ce);
+		sub = submodule_from_ce_fields(ce->ce_mode, ce->name);
 		if (sub)
 			return submodule_move_head(ce->name,
 				NULL, oid_to_hex(&ce->oid),
