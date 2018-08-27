@@ -141,6 +141,83 @@ static int streaming_write_entry(char *path,
 		unlink(path);
 	return result;
 }
+/*
+static int write_entry_from_buffer(char *path,
+				   unsigned ce_mode,
+				   void *in_buf,
+				   unsigned buf_len,
+				   const struct object_id *ce_oid,
+				   const struct checkout *state, int to_tempfile,
+				   int *fstat_done, struct stat *statbuf)
+{
+	
+	int result = 0;
+	int fd;
+	struct strbuf buf = STRBUF_INIT;
+	size_t newsize = 0;
+
+	char *content = in_buf;
+	size_t size = buf_len;
+	
+	result = convert_to_working_tree(path, in_buf, size, &buf);
+	
+	if (result) {
+		content = strbuf_detach(&buf, &newsize);
+		size = newsize;
+	}
+	
+	fd = open_output_fd(path, ce_mode, to_tempfile);
+	if (fd < 0)
+		return -1;
+	
+	result = write_in_full(fd, content, size);
+	*fstat_done = fstat_output(fd, state, statbuf);
+	result |= close(fd);
+
+	if (result)
+		unlink(path);
+	return result;
+}
+*/
+
+int write_entry_from_buffer_simple(const char *name,
+				   unsigned namelen,
+				   unsigned ce_mode,
+				   void *in_buf,
+				   unsigned buf_len,
+				   const struct checkout *state)
+{
+	int result = 0;
+	int fd;
+	struct strbuf new_content_buf = STRBUF_INIT;
+	size_t newsize = 0;
+
+	char *content = in_buf;
+	size_t size = buf_len;
+
+	static struct strbuf path = STRBUF_INIT;
+	strbuf_reset(&path);
+	strbuf_add(&path, state->base_dir, state->base_dir_len);
+	strbuf_add(&path, name, namelen);
+
+	result = convert_to_working_tree(path.buf, in_buf, size, &new_content_buf);
+	
+	if (result) {
+		content = strbuf_detach(&new_content_buf, &newsize);
+		size = newsize;
+	}
+
+	fd = open_output_fd(path.buf, ce_mode, 0);
+	if (fd < 0)
+		return -1;
+	
+	result = write_in_full(fd, content, size);
+	result |= close(fd);
+
+	if (result)
+		unlink(path.buf);
+	return result;
+}
 
 void enable_delayed_checkout(struct checkout *state)
 {
@@ -266,14 +343,17 @@ static int write_entry(struct cache_entry *ce,
 	size_t newsize = 0;
 	struct stat st;
 	const struct submodule *sub;
+	char *ce_name = ce->name;
+	const struct object_id *ce_oid = &ce->oid;
+	unsigned int ce_mode = ce->ce_mode;
 
 	if (ce_mode_s_ifmt == S_IFREG) {
-		struct stream_filter *filter = get_stream_filter(ce->name,
-								 &ce->oid);
+		struct stream_filter *filter = get_stream_filter(ce_name,
+								 ce_oid);
 		if (filter &&
 		    !streaming_write_entry(path,
-					   ce->ce_mode,
-					   &ce->oid,
+					   ce_mode,
+					   ce_oid,
 					   filter,
 					   state,
 					   to_tempfile,
@@ -284,7 +364,7 @@ static int write_entry(struct cache_entry *ce,
 
 	switch (ce_mode_s_ifmt) {
 	case S_IFLNK:
-		new_blob = read_blob_entry(&ce->oid, &size);
+		new_blob = read_blob_entry(ce_oid, &size);
 		if (!new_blob)
 			return error("unable to read sha1 file of %s (%s)",
 				     path, oid_to_hex(&ce->oid));
@@ -311,24 +391,24 @@ static int write_entry(struct cache_entry *ce,
 			new_blob = NULL;
 			size = 0;
 		} else {
-			new_blob = read_blob_entry(&ce->oid, &size);
+			new_blob = read_blob_entry(ce_oid, &size);
 			if (!new_blob)
 				return error("unable to read sha1 file of %s (%s)",
-					     path, oid_to_hex(&ce->oid));
+					     path, oid_to_hex(ce_oid));
 		}
 
 		/*
 		 * Convert from git internal format to working tree format
 		 */
 		if (dco && dco->state != CE_NO_DELAY) {
-			ret = async_convert_to_working_tree(ce->name, new_blob,
+			ret = async_convert_to_working_tree(ce_name, new_blob,
 							    size, &buf, dco);
-			if (ret && string_list_has_string(&dco->paths, ce->name)) {
+			if (ret && string_list_has_string(&dco->paths, ce_name)) {
 				free(new_blob);
 				goto delayed;
 			}
 		} else
-			ret = convert_to_working_tree(ce->name, new_blob, size, &buf);
+			ret = convert_to_working_tree(ce_name, new_blob, size, &buf);
 
 		if (ret) {
 			free(new_blob);
@@ -342,7 +422,7 @@ static int write_entry(struct cache_entry *ce,
 		 */
 
 	write_file_entry:
-		fd = open_output_fd(path, ce->ce_mode, to_tempfile);
+		fd = open_output_fd(path, ce_mode, to_tempfile);
 		if (fd < 0) {
 			free(new_blob);
 			return error_errno("unable to create file %s", path);
@@ -364,8 +444,8 @@ static int write_entry(struct cache_entry *ce,
 			return error("cannot create submodule directory %s", path);
 		sub = submodule_from_ce(ce);
 		if (sub)
-			return submodule_move_head(ce->name,
-				NULL, oid_to_hex(&ce->oid),
+			return submodule_move_head(ce_name,
+				NULL, oid_to_hex(ce_oid),
 				state->force ? SUBMODULE_MOVE_HEAD_FORCE : 0);
 		break;
 

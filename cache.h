@@ -1526,6 +1526,12 @@ struct checkout {
 extern int checkout_entry(struct cache_entry *ce, const struct checkout *state, char *topath);
 extern void enable_delayed_checkout(struct checkout *state);
 extern int finish_delayed_checkout(struct checkout *state);
+int write_entry_from_buffer_simple(const char *name,
+				   unsigned namelen,
+				   unsigned ce_mode,
+				   void *in_buf,
+				   unsigned buf_len,
+				   const struct checkout *state);
 
 struct cache_def {
 	struct strbuf path;

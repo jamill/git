@@ -179,7 +179,7 @@ static int checkout_merged(int pos, const struct checkout *state)
 	const char *path = ce->name;
 	mmfile_t ancestor, ours, theirs;
 	int status;
-	struct object_id oid;
+	// struct object_id oid;
 	mmbuffer_t result_buf;
 	struct object_id threeway[3];
 	unsigned mode = 0;
@@ -217,6 +217,9 @@ static int checkout_merged(int pos, const struct checkout *state)
 		return error(_("path '%s': cannot merge"), path);
 	}
 
+	status = write_entry_from_buffer_simple(path, ce_namelen(ce),  mode, result_buf.ptr, result_buf.size, state);
+	free(result_buf.ptr);
+	
 	/*
 	 * NEEDSWORK:
 	 * There is absolutely no reason to write this as a blob object
@@ -229,14 +232,14 @@ static int checkout_merged(int pos, const struct checkout *state)
 	 * (it also writes the merge result to the object database even
 	 * when it may contain conflicts).
 	 */
-	if (write_object_file(result_buf.ptr, result_buf.size, blob_type, &oid))
-		die(_("Unable to add merge result for '%s'"), path);
-	free(result_buf.ptr);
-	ce = make_transient_cache_entry(mode, &oid, path, 2);
-	if (!ce)
-		die(_("make_cache_entry failed for path '%s'"), path);
-	status = checkout_entry(ce, state, NULL);
-	discard_cache_entry(ce);
+	// if (write_object_file(result_buf.ptr, result_buf.size, blob_type, &oid))
+	//	die(_("Unable to add merge result for '%s'"), path);
+	//free(result_buf.ptr);
+	// ce = make_transient_cache_entry(mode, &oid, path, 2);
+	// if (!ce)
+	// 	die(_("make_cache_entry failed for path '%s'"), path);
+	// status = checkout_entry(ce, state, NULL);
+	// discard_cache_entry(ce);
 	return status;
 }
 
