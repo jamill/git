@@ -254,9 +254,12 @@ int finish_delayed_checkout(struct checkout *state)
 }
 
 static int write_entry(struct cache_entry *ce,
+		       const char *ce_name,
+		       unsigned ce_mode,
+		       const struct object_id *ce_oid,
 		       char *path, const struct checkout *state, int to_tempfile)
 {
-	unsigned int ce_mode_s_ifmt = ce->ce_mode & S_IFMT;
+	unsigned int ce_mode_s_ifmt = ce_mode & S_IFMT;
 	struct delayed_checkout *dco = state->delayed_checkout;
 	int fd, ret, fstat_done = 0;
 	char *new_blob;
@@ -268,12 +271,12 @@ static int write_entry(struct cache_entry *ce,
 	const struct submodule *sub;
 
 	if (ce_mode_s_ifmt == S_IFREG) {
-		struct stream_filter *filter = get_stream_filter(state->istate, ce->name,
-								 &ce->oid);
+		struct stream_filter *filter = get_stream_filter(state->istate, ce_name,
+								 ce_oid);
 		if (filter &&
 		    !streaming_write_entry(path,
-					   ce->ce_mode,
-					   &ce->oid,
+					   ce_mode,
+					   ce_oid,
 					   filter,
 					   state,
 					   to_tempfile,
@@ -284,10 +287,10 @@ static int write_entry(struct cache_entry *ce,
 
 	switch (ce_mode_s_ifmt) {
 	case S_IFLNK:
-		new_blob = read_blob_entry(&ce->oid, &size);
+		new_blob = read_blob_entry(ce_oid, &size);
 		if (!new_blob)
 			return error("unable to read sha1 file of %s (%s)",
-				     path, oid_to_hex(&ce->oid));
+				     path, oid_to_hex(ce_oid));
 
 		/*
 		 * We can't make a real symlink; write out a regular file entry
@@ -311,24 +314,24 @@ static int write_entry(struct cache_entry *ce,
 			new_blob = NULL;
 			size = 0;
 		} else {
-			new_blob = read_blob_entry(&ce->oid, &size);
+			new_blob = read_blob_entry(ce_oid, &size);
 			if (!new_blob)
 				return error("unable to read sha1 file of %s (%s)",
-					     path, oid_to_hex(&ce->oid));
+					     path, oid_to_hex(ce_oid));
 		}
 
 		/*
 		 * Convert from git internal format to working tree format
 		 */
 		if (dco && dco->state != CE_NO_DELAY) {
-			ret = async_convert_to_working_tree(state->istate, ce->name, new_blob,
+			ret = async_convert_to_working_tree(state->istate, ce_name, new_blob,
 							    size, &buf, dco);
-			if (ret && string_list_has_string(&dco->paths, ce->name)) {
+			if (ret && string_list_has_string(&dco->paths, ce_name)) {
 				free(new_blob);
 				goto delayed;
 			}
 		} else
-			ret = convert_to_working_tree(state->istate, ce->name, new_blob, size, &buf);
+			ret = convert_to_working_tree(state->istate, ce_name, new_blob, size, &buf);
 
 		if (ret) {
 			free(new_blob);
@@ -342,7 +345,7 @@ static int write_entry(struct cache_entry *ce,
 		 */
 
 	write_file_entry:
-		fd = open_output_fd(path, ce->ce_mode, to_tempfile);
+		fd = open_output_fd(path, ce_mode, to_tempfile);
 		if (fd < 0) {
 			free(new_blob);
 			return error_errno("unable to create file %s", path);
@@ -364,8 +367,8 @@ static int write_entry(struct cache_entry *ce,
 			return error("cannot create submodule directory %s", path);
 		sub = submodule_from_ce_fields(ce->ce_mode, ce->name);
 		if (sub)
-			return submodule_move_head(ce->name,
-				NULL, oid_to_hex(&ce->oid),
+			return submodule_move_head(ce_name,
+				NULL, oid_to_hex(ce_oid),
 				state->force ? SUBMODULE_MOVE_HEAD_FORCE : 0);
 		break;
 
@@ -377,9 +380,9 @@ finish:
 	if (state->refresh_cache) {
 		assert(state->istate);
 		if (!fstat_done)
-			if (lstat(ce->name, &st) < 0)
+			if (lstat(ce_name, &st) < 0)
 				return error_errno("unable to stat just-written file %s",
-						   ce->name);
+						   ce_name);
 		fill_stat_cache_info(ce, &st);
 		ce->ce_flags |= CE_UPDATE_IN_BASE;
 		mark_fsmonitor_invalid(state->istate, ce);
@@ -421,7 +424,7 @@ int checkout_entry(struct cache_entry *ce,
 	struct stat st;
 
 	if (topath)
-		return write_entry(ce, topath, state, 1);
+		return write_entry(ce, ce->name, ce->ce_mode, &ce->oid, topath, state, 1);
 
 	strbuf_reset(&path);
 	strbuf_add(&path, state->base_dir, state->base_dir_len);
@@ -482,5 +485,5 @@ int checkout_entry(struct cache_entry *ce,
 		return 0;
 
 	create_directories(path.buf, path.len, state);
-	return write_entry(ce, path.buf, state, 0);
+	return write_entry(ce, ce->name, ce->ce_mode, &ce->oid, path.buf, state, 0);
 }

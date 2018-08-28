@@ -682,13 +682,7 @@ const struct submodule *submodule_from_ce_fields(unsigned int ce_mode, const cha
 
 const struct submodule *submodule_from_ce(const struct cache_entry *ce)
 {
-	if (!S_ISGITLINK(ce->ce_mode))
-		return NULL;
-
-	if (!should_update_submodules())
-		return NULL;
-
-	return submodule_from_path(the_repository, &null_oid, ce->name);
+	return submodule_from_ce_fields(ce->ce_mode, ce->name);
 }
 
 static struct oid_array *submodule_commits(struct string_list *submodules,
